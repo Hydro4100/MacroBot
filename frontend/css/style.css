@@ -158,31 +158,31 @@ body.light-theme #coords-display { background-color: rgba(245, 246, 250, 0.8); b
 
 /* --- Modal Styling --- */
 .modal-hidden { display: none !important; }
-#error-modal, #settings-modal, #confirm-modal, #info-modal, #welcome-modal {
+#error-modal, #settings-modal, #confirm-modal, #info-modal, #welcome-modal, #update-modal {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background-color: rgba(0, 0, 0, 0.6); display: flex;
     justify-content: center; align-items: center; z-index: 2000;
     opacity: 1; transition: opacity 0.2s ease-in-out;
 }
-#error-modal.modal-hidden, #settings-modal.modal-hidden, #confirm-modal.modal-hidden, #info-modal.modal-hidden, #welcome-modal.modal-hidden {
+#error-modal.modal-hidden, #settings-modal.modal-hidden, #confirm-modal.modal-hidden, #info-modal.modal-hidden, #welcome-modal.modal-hidden, #update-modal.modal-hidden {
     opacity: 0; pointer-events: none;
 }
-#error-modal-content, #settings-modal-content, #confirm-modal-content, #info-modal-content, #welcome-modal-content {
+#error-modal-content, #settings-modal-content, #confirm-modal-content, #info-modal-content, #welcome-modal-content, #update-modal-content {
     background-color: var(--node-bg); border-radius: 8px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.5);
 }
-#error-modal-content, #confirm-modal-content {
+#error-modal-content, #confirm-modal-content, #update-modal-content {
     padding: 25px; border: 1px solid var(--node-border); text-align: center; max-width: 400px; width: 90%;
 }
-#error-modal-content p, #confirm-modal-content p { margin: 0 0 20px 0; color: var(--text-color); }
-#error-modal-content button, .confirm-buttons button, #welcome-modal-content button {
+#error-modal-content p, #confirm-modal-content p, #update-modal-content p { margin: 0 0 20px 0; color: var(--text-color); }
+#error-modal-content button, .confirm-buttons button, #welcome-modal-content button, .update-buttons button {
     background-color: var(--accent-color); color: var(--bg-color); border: none;
     padding: 10px 25px; border-radius: 5px; cursor: pointer; font-weight: bold;
     transition: background-color 0.2s;
 }
-#error-modal-content button:hover, .confirm-buttons button:hover, #welcome-modal-content button:hover { background-color: #a9b1d6; }
-.confirm-buttons { display: flex; justify-content: center; gap: 15px; }
-#confirm-no { background-color: var(--error-color); }
+#error-modal-content button:hover, .confirm-buttons button:hover, #welcome-modal-content button:hover, .update-buttons button:hover { background-color: #a9b1d6; }
+.confirm-buttons, .update-buttons { display: flex; justify-content: center; gap: 15px; }
+#confirm-no, #update-dismiss-btn { background-color: var(--error-color); }
 
 /* --- Welcome Modal --- */
 #welcome-modal-content {

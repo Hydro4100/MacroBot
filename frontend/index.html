@@ -47,6 +47,18 @@
         </main>
     </div>
 
+    <!-- Update Available Modal -->
+    <div id="update-modal" class="modal-hidden">
+        <div id="update-modal-content">
+            <h3>Update Available!</h3>
+            <p>A new version (<strong id="update-version"></strong>) of MacroBot is available.</p>
+            <div class="update-buttons">
+                <button id="update-download-btn">Download</button>
+                <button id="update-dismiss-btn">Later</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Welcome Modal -->
     <div id="welcome-modal" class="modal-hidden">
         <div id="welcome-modal-content">
@@ -59,7 +71,10 @@
             <p><strong>What's new in version <span id="welcome-version"></span>:</strong></p>
             <div id="release-notes">
                 <!-- Release notes can be added here -->
-                <p>- Initial Release!</p>
+                <p>- Fixed for & while nodes</p>
+                <p>- Fixed if nodes</p>
+                <p>- Stopped dev tools popup</p>
+                <p>- New version detection</p>
             </div>
             <button id="welcome-modal-close">Get Started</button>
         </div>

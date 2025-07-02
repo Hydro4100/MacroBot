@@ -47,6 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const minimapCanvas = document.getElementById('minimap-canvas');
     const minimapViewport = document.getElementById('minimap-viewport');
     const minimapCtx = minimapCanvas.getContext('2d');
+    const updateModal = document.getElementById('update-modal');
+    const updateVersionSpan = document.getElementById('update-version');
+    const updateDownloadBtn = document.getElementById('update-download-btn');
+    const updateDismissBtn = document.getElementById('update-dismiss-btn');
     
     let activeNodeForMenu = null;
     let nodeIdCounter = 0;
@@ -252,14 +256,14 @@ document.addEventListener('DOMContentLoaded', () => {
             type: 'string_literal',
             name: 'String',
             description: 'Provides a text (string) value.',
-            dataInputs: [ { name: '', type: 'string', defaultValue: 'some text' } ],
+            dataInputs: [ { name: 'value', type: 'string', defaultValue: 'some text', hasPin: false } ],
             dataOutputs: [ { name: 'out', type: 'string' } ]
         },
         {
             type: 'number_literal',
             name: 'Number',
             description: 'Provides a numerical value.',
-            dataInputs: [ { name: '', type: 'number', defaultValue: 123 } ],
+            dataInputs: [ { name: 'value', type: 'number', defaultValue: 123, hasPin: false } ],
             dataOutputs: [ { name: 'out', type: 'number' } ]
         },
         {
@@ -389,7 +393,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Create Pins
             (nodeInfo.execInputs || []).forEach(p => pinsLeft.appendChild(createPin(p, 'exec', 'input', nodeInfo)));
             (nodeInfo.execOutputs || []).forEach(p => pinsRight.appendChild(createPin(p, 'exec', 'output', nodeInfo)));
-            (nodeInfo.dataInputs || []).forEach(p => pinsLeft.appendChild(createPin(p, 'data', 'input', nodeInfo)));
+            (nodeInfo.dataInputs || []).forEach(p => {
+                if (p.hasPin === false) { // For literal nodes
+                    mainContent.appendChild(createPin(p, 'data', 'input', nodeInfo));
+                } else {
+                    pinsLeft.appendChild(createPin(p, 'data', 'input', nodeInfo));
+                }
+            });
             (nodeInfo.dataOutputs || []).forEach(p => pinsRight.appendChild(createPin(p, 'data', 'output', nodeInfo)));
             
             // Create Parameters
@@ -429,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const label = document.createElement('span');
         label.classList.add('pin-label');
-        if(pinInfo.name) label.textContent = pinInfo.name;
+        if(pinInfo.name && pinInfo.name !== 'value') label.textContent = pinInfo.name;
 
         if (pinInfo.hasPin !== false) {
             const pin = document.createElement('div');
@@ -786,9 +796,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function validateNumberLiteralConnection(startNodeEl, endWrapper, showBreakMessage = false) {
         const endNodeEl = endWrapper.closest('.canvas-node');
-        const endNodeInfo = availableNodes.find(n => n.type === endNodeEl.dataset.nodeType);
+        const nodeInfo = availableNodes.find(n => n.type === endNodeEl.dataset.nodeType);
         const endPinName = endWrapper.dataset.name;
-        const endPinInfo = endNodeInfo.dataInputs.find(p => p.name === endPinName);
+        const endPinInfo = nodeInfo.dataInputs.find(p => p.name === endPinName);
 
         if (endPinInfo && (endPinInfo.min !== undefined || endPinInfo.max !== undefined)) {
             const min = endPinInfo.min !== undefined ? endPinInfo.min : -Infinity;
@@ -1513,18 +1523,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function serializeMacro(startNodeId) {
-        const relevantNodes = new Set([startNodeId]);
+        const relevantNodes = new Set();
         const queue = [startNodeId];
         
-        // Traverse the graph to find all connected nodes
-        while (queue.length > 0) {
-            const currentId = queue.shift();
+        // Start traversal from the start node
+        if (!relevantNodes.has(startNodeId)) {
+            relevantNodes.add(startNodeId);
+        }
+        
+        let i = 0;
+        while(i < queue.length) {
+            const currentId = queue[i++];
+            
+            // Find all connections involving the current node
             connections.forEach(conn => {
+                let otherNodeId = null;
                 if (conn.startNodeId === currentId) {
-                    if (!relevantNodes.has(conn.endNodeId)) {
-                        relevantNodes.add(conn.endNodeId);
-                        queue.push(conn.endNodeId);
-                    }
+                    otherNodeId = conn.endNodeId;
+                } else if (conn.endNodeId === currentId) {
+                    otherNodeId = conn.startNodeId;
+                }
+
+                if (otherNodeId && !relevantNodes.has(otherNodeId)) {
+                    relevantNodes.add(otherNodeId);
+                    queue.push(otherNodeId);
                 }
             });
         }
@@ -1535,10 +1557,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return serializeNode(nodeEl);
         }).filter(n => n !== null);
 
+        const relevantConnections = connections.filter(c => 
+            relevantNodes.has(c.startNodeId) && relevantNodes.has(c.endNodeId)
+        );
+
         return {
             start_node_id: startNodeId,
             nodes: serializedNodes,
-            connections: connections.filter(c => relevantNodes.has(c.startNodeId))
+            connections: relevantConnections.map(c => ({...c, wire: null}))
         };
     }
     
@@ -1600,8 +1626,13 @@ document.addEventListener('DOMContentLoaded', () => {
             nodeEl.querySelectorAll('input, select, .key-recorder-input').forEach(input => {
                 const paramWrapper = input.closest('.node-param, .pin-wrapper');
                 if (paramWrapper) {
+                    // Skip saving default values for data pins that are connected
+                    if (paramWrapper.classList.contains('pin-wrapper') && paramWrapper.classList.contains('connected')) {
+                        return;
+                    }
+
                     const paramName = paramWrapper.dataset.name || paramWrapper.dataset.paramName;
-                    if (paramName) {
+                    if (paramName !== undefined && paramName !== null) {
                         if (input.classList.contains('key-recorder-input')) {
                             nodeData.values[paramName] = {
                                 display: input.textContent,
@@ -1661,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const paramWrapper = input.closest('.pin-wrapper, .node-param');
                              if (paramWrapper) {
                                 const paramName = paramWrapper.dataset.name || paramWrapper.dataset.paramName;
-                                if (paramName && nodeData.values.hasOwnProperty(paramName)) {
+                                if ((paramName !== undefined && paramName !== null) && nodeData.values.hasOwnProperty(paramName)) {
                                     const value = nodeData.values[paramName];
                                     
                                     if (input.classList.contains('key-recorder-input')) {
@@ -1849,6 +1880,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }, { once: true });
         }
         
+        // Check for updates on startup
+        const updateInfo = await window.pywebview.api.check_for_updates();
+        if (updateInfo && updateInfo.update_available) {
+            updateVersionSpan.textContent = updateInfo.latest_version;
+            updateDownloadBtn.onclick = () => {
+                window.pywebview.api.open_url(updateInfo.download_url);
+            };
+            updateModal.classList.remove('modal-hidden');
+        }
+
+        updateDismissBtn.addEventListener('click', () => {
+            updateModal.classList.add('modal-hidden');
+        });
+
         gatherAndRegisterHotkeys();
         saveState(); // Save initial empty state
     }
