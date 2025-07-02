@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacroBot</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="editor-container">
+        <!-- Sidebar -->
+        <aside id="node-sidebar">
+            <div class="sidebar-header">
+                <h2>MacroBot</h2>
+            </div>
+            <div id="node-list">
+                <!-- Nodes will be added here by app.js -->
+            </div>
+            <div class="sidebar-footer">
+                <div class="footer-group">
+                    <button id="new-btn" title="New"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg></button>
+                    <button id="import-btn" title="Import"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></button>
+                    <button id="save-btn" title="Save"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></button>
+                    <button id="validate-btn" title="Validate"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></button>
+                </div>
+                <div class="footer-group">
+                    <button id="undo-btn" title="Undo (Ctrl+Z)" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">  <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/>  <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/></svg></button>
+                    <button id="redo-btn" title="Redo (Ctrl+Y)" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">  <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/></svg></button>
+                    <button id="info-btn" title="Info"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+                    <button id="settings-btn" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main canvas viewport -->
+        <main id="canvas">
+            <div id="coords-display">X: 0, Y: 0</div>
+            <div id="canvas-content">
+                <svg id="svg-layer"></svg>
+            </div>
+            <!-- Minimap -->
+            <div id="minimap">
+                <canvas id="minimap-canvas"></canvas>
+                <div id="minimap-viewport"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Welcome Modal -->
+    <div id="welcome-modal" class="modal-hidden">
+        <div id="welcome-modal-content">
+            <h3>Welcome to MacroBot!</h3>
+            <p class="welcome-info-text">
+                For a detailed guide on how to use the editor, please visit the Info page by clicking the 
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                button.
+            </p>
+            <p><strong>What's new in version <span id="welcome-version"></span>:</strong></p>
+            <div id="release-notes">
+                <!-- Release notes can be added here -->
+                <p>- Initial Release!</p>
+            </div>
+            <button id="welcome-modal-close">Get Started</button>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal-hidden">
+        <div id="error-modal-content">
+            <p id="error-message"></p>
+            <button id="error-modal-close">OK</button>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-hidden">
+        <div id="confirm-modal-content">
+            <p id="confirm-message"></p>
+            <div class="confirm-buttons">
+                <button id="confirm-yes">Yes</button>
+                <button id="confirm-no">No</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-hidden">
+        <div id="settings-modal-content">
+            <div class="settings-header">
+                <h3>Settings</h3>
+                <button id="settings-modal-close">&times;</button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-category">General</div>
+                <div class="setting-item">
+                    <label for="theme-switcher">Theme</label>
+                    <button id="theme-switcher">Switch to Light Theme</button>
+                </div>
+                <div class="setting-item">
+                    <label for="disable-errors-checkbox">Disable Error Pop-ups</label>
+                    <input type="checkbox" id="disable-errors-checkbox" />
+                </div>
+                <div class="setting-item">
+                    <label for="reset-settings-btn">Reset All Settings</label>
+                    <button id="reset-settings-btn">Reset</button>
+                </div>
+
+                <div class="settings-category">Canvas</div>
+                <div class="setting-item">
+                    <label for="grid-snap-checkbox">Snap to Grid</label>
+                    <input type="checkbox" id="grid-snap-checkbox" />
+                </div>
+                <div class="setting-item">
+                    <label for="grid-snap-size-input">Grid Snap Size (px)</label>
+                    <input type="number" id="grid-snap-size-input" class="settings-input" value="20" step="1" min="5" max="100">
+                </div>
+                <div class="setting-item">
+                    <label for="wire-style-switcher">Wire Style</label>
+                    <select id="wire-style-switcher">
+                        <option value="curved">Curved</option>
+                        <option value="straight">Straight</option>
+                    </select>
+                </div>
+
+                <div class="settings-category">Hotkeys</div>
+                <div class="setting-item">
+                    <label>Emergency Stop</label>
+                    <div id="emergency-stop-recorder" class="key-recorder-input" data-default-value="Not Set">Not Set</div>
+                </div>
+                <div class="setting-item">
+                    <label>Undo</label>
+                    <div id="undo-recorder" class="key-recorder-input" data-default-value="Ctrl + Z">Ctrl + Z</div>
+                </div>
+                <div class="setting-item">
+                    <label>Redo</label>
+                    <div id="redo-recorder" class="key-recorder-input" data-default-value="Ctrl + Y">Ctrl + Y</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Information Modal -->
+    <div id="info-modal" class="modal-hidden">
+        <div id="info-modal-content">
+            <div class="info-header">
+                <h3>Information</h3>
+                <button id="info-modal-close">&times;</button>
+            </div>
+            <div class="info-body">
+                <div class="info-tabs">
+                    <button class="info-tab-btn active" data-tab="how-to-use">How to Use</button>
+                    <button class="info-tab-btn" data-tab="faq">FAQ</button>
+                    <button class="info-tab-btn" data-tab="credits">Credits</button>
+                </div>
+
+                <div id="info-content-how-to-use" class="info-content-panel active">
+                    <h4>The Basics</h4>
+                    <p>Create powerful macros by connecting nodes on the canvas. Drag nodes from the sidebar on the left onto the main canvas area. Connect them with wires to create a logical flow.</p>
+                    
+                    <h4>Navigation</h4>
+                    <p>
+                        <strong>- Panning:</strong> Middle-click and drag to move around the canvas.<br>
+                        <strong>- Zooming:</strong> Use the mouse wheel to zoom in and out.<br>
+                        <strong>- Minimap:</strong> Use the minimap in the top-right corner to quickly navigate your project. Click or drag on it to jump to different areas of the canvas.
+                    </p>
+
+                    <h4>Connections</h4>
+                    <p>
+                        <strong>- Execution Pins (▶):</strong> These control the flow of your macro. Execution starts at a 'Start' node and follows the white wires to the next node.
+                        <br>
+                        <strong>- Data Pins (●):</strong> These pass data between nodes. They are color-coded by type (e.g., red for numbers, green for text). You can only connect data pins of the same color.
+                        <br>
+                        <strong>- Creating Wires:</strong> Click and drag from one pin to another.
+                        <br>
+                        <strong>- Deleting Wires:</strong> Right-click on a pin to remove its connection.
+                    </p>
+                    
+                    <h4>Comments</h4>
+                    <p>You can add comments to your canvas to leave notes for yourself or others. Right-click on an empty area of the canvas and select "Add Comment".</p>
+
+                    <h4>Available Nodes</h4>
+                    <div id="info-node-list">
+                        <!-- Node descriptions will be dynamically inserted here by app.js -->
+                    </div>
+                </div>
+
+                <div id="info-content-faq" class="info-content-panel">
+                    <div class="faq-item">
+                        <div class="faq-question">What is MacroBot?</div>
+                        <div class="faq-answer">
+                            <p>MacroBot is a visual scripting tool that allows you to create desktop and in-game automation scripts (macros) without writing any code. You build logic by connecting nodes together.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question">How do I start a macro?</div>
+                        <div class="faq-answer">
+                            <p>Every macro must begin with a single 'Start' node. You can set a hotkey on the 'Start' node to trigger the macro's execution. Once the hotkey is pressed, the logic will flow from the 'Start' node's execution pin.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question">Why won't my pins connect?</div>
+                        <div class="faq-answer">
+                            <p>There are a few reasons pins might not connect:</p>
+                            <ul>
+                                <li>You cannot connect a pin to another pin on the same node.</li>
+                                <li>Execution pins (▶) can only connect to other execution pins.</li>
+                                <li>Data pins (●) can only connect to other data pins of the <strong>same color</strong> (same data type).</li>
+                                <li>An input pin can only have one connection at a time.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question">What is the minimap for?</div>
+                        <div class="faq-answer">
+                            <p>The minimap in the top-right corner gives you a high-level overview of your entire project. It's useful for quickly navigating large and complex macros without having to zoom out and pan around manually. Just click or drag on the minimap to instantly jump to that location on the main canvas.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="info-content-credits" class="info-content-panel">
+                    <h4>Credits</h4>
+                    <p>MacroBot was created by <strong>Ben Trewick</strong>.</p>
+                    <p>A big thank you to the open-source community and the creators of the tools that made this possible.</p>
+                    <div class="social-links">
+                        <a href="javascript:void(0);" title="GitHub"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
+                        <a href="javascript:void(0);" title="Discord"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">  <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/></svg></a>
+                        <a href="javascript:void(0);" title="Website"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M2 12H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M12 2C14.5013 4.73835 15.9228 8.28231 16 12C15.9228 15.7177 14.5013 19.2616 12 22C9.49872 19.2616 8.07725 15.7177 8 12C8.07725 8.28231 9.49872 4.73835 12 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Context Menu -->
+    <div id="context-menu" class="hidden">
+        <ul>
+            <li id="menu-delete">Delete</li>
+            <li id="menu-duplicate">Duplicate</li>
+            <li id="menu-pin">Pin</li>
+            <li id="menu-color">
+                <span>Change Color</span>
+                <div id="color-palette">
+                    <div class="color-swatch" data-color="default"></div>
+                    <div class="color-swatch" data-color="red"></div>
+                    <div class="color-swatch" data-color="green"></div>
+                    <div class="color-swatch" data-color="blue"></div>
+                    <div class="color-swatch" data-color="yellow"></div>
+                    <div class="color-swatch" data-color="purple"></div>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Canvas Context Menu -->
+    <div id="canvas-context-menu" class="hidden">
+        <ul>
+            <li id="menu-add-comment">Add Comment</li>
+        </ul>
+    </div>
+
+
+    <script src="js/app.js" defer></script>
+</body>
+</html>
