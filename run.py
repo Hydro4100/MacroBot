@@ -110,16 +110,17 @@ class MacroRunner:
                 
             should_loop = start_node.get('values', {}).get('Loop Continuously', False)
 
-            # If the macro is not set to loop, just run the execution path once.
-            if not should_loop:
-                self.execute_path(start_node_id)
-            else:
-                # If looping, continue executing the path until stopped.
-                while self.is_running:
+            try:
+                if not should_loop:
                     self.execute_path(start_node_id)
-                    # If the macro was stopped during execution, don't sleep.
-                    if self.is_running:
-                        time.sleep(0.1)
+                else:
+                    while self.is_running:
+                        self.execute_path(start_node_id)
+                        if self.is_running:
+                            time.sleep(0.1)
+            except Exception as e:
+                print(f"Macro stopped due to an unhandled error: {e}")
+                self.stop()
 
         finally:
             print("Macro execution finished.")
@@ -138,15 +139,30 @@ class MacroRunner:
 
             self.window.evaluate_js(f"window.highlightNode('{current_node_id}')")
             
-            # The 'start' node doesn't have an action, it just directs flow.
-            # For all other nodes, execute their action and determine the next path.
             next_pin_name = 'exec'
-            if node.get('type') not in ['start', 'define_function']:
-                next_pin_name = self.execute_node(node)
             
-            # If the function returned, stop this execution path
-            if next_pin_name == 'FUNCTION_RETURN':
-                return
+            # Handle Try/Catch as a special flow control node
+            if node.get('type') == 'try_catch':
+                try_conn = next((c for c in self.connections if c['startNodeId'] == current_node_id and c['startPinName'] == 'Try'), None)
+                catch_conn = next((c for c in self.connections if c['startNodeId'] == current_node_id and c['startPinName'] == 'Catch'), None)
+                
+                try:
+                    if try_conn:
+                        self.execute_path(try_conn.endNodeId)
+                except Exception as e:
+                    print(f"Caught exception in Try block, redirecting to Catch block: {e}")
+                    if catch_conn:
+                        self.execute_path(catch_conn.endNodeId)
+                    else:
+                        print("Error in Try block, but no Catch path connected.")
+                
+                next_pin_name = 'Completed'
+
+            # Handle all other executable nodes
+            elif node.get('type') not in ['start', 'define_function']:
+                next_pin_name = self.execute_node(node)
+                if next_pin_name == 'FUNCTION_RETURN':
+                    return # Exit this path if it's a return from function
 
             time.sleep(0.05)
 
@@ -296,113 +312,105 @@ class MacroRunner:
         
         next_exec_pin = 'exec' # Default for simple nodes
 
-        try:
-            if not self.is_running: return None
-
-            if node_type == 'delay':
-                duration = self.get_input_value(node_id, 'Duration', 'number', 1)
-                unit = values.get('Unit', 'seconds')
-                if unit == 'milliseconds':
-                    duration /= 1000.0
-                elif unit == 'minutes':
-                    duration *= 60
-                
-                end_time = time.time() + duration
-                while time.time() < end_time and self.is_running:
-                    time.sleep(0.1)
-
-            elif node_type == 'mouse_click':
-                pyautogui.click(
-                    button=values.get('Button', 'left').lower(),
-                    clicks=2 if values.get('Action') == 'double_click' else 1,
-                    interval=0.1
-                )
-
-            elif node_type == 'mouse_move':
-                x_pos = self.get_input_value(node_id, 'X', 'number', 0)
-                y_pos = self.get_input_value(node_id, 'Y', 'number', 0)
-                duration = self.get_input_value(node_id, 'Duration', 'number', 0.25)
-                unit = values.get('Unit', 'seconds')
-                if unit == 'milliseconds':
-                    duration /= 1000.0
-                
-                pyautogui.moveTo(x=int(x_pos), y=int(y_pos), duration=duration)
+        if node_type == 'delay':
+            duration = self.get_input_value(node_id, 'Duration', 'number', 1)
+            unit = values.get('Unit', 'seconds')
+            if unit == 'milliseconds':
+                duration /= 1000.0
+            elif unit == 'minutes':
+                duration *= 60
             
-            elif node_type == 'key_press':
-                key_info = values.get('Key', {})
-                pynput_str = key_info.get('pynput', '')
-                if not pynput_str:
-                    return next_exec_pin
+            end_time = time.time() + duration
+            while time.time() < end_time and self.is_running:
+                time.sleep(0.1)
 
-                if '+' not in pynput_str:
-                    key_to_press = pynput_str.replace('<', '').replace('>', '')
-                    pyautogui.press(key_to_press)
-                else:
-                    keys = pynput_str.replace('<', '').replace('>', '').split('+')
-                    pyautogui.hotkey(*keys)
+        elif node_type == 'mouse_click':
+            pyautogui.click(
+                button=values.get('Button', 'left').lower(),
+                clicks=2 if values.get('Action') == 'double_click' else 1,
+                interval=0.1
+            )
+
+        elif node_type == 'mouse_move':
+            x_pos = self.get_input_value(node_id, 'X', 'number', 0)
+            y_pos = self.get_input_value(node_id, 'Y', 'number', 0)
+            duration = self.get_input_value(node_id, 'Duration', 'number', 0.25)
+            unit = values.get('Unit', 'seconds')
+            if unit == 'milliseconds':
+                duration /= 1000.0
             
-            elif node_type == 'type_string':
-                text_to_type = self.get_input_value(node_id, 'Text', 'string', "")
-                delay = self.get_input_value(node_id, 'Delay', 'number', 50)
-                unit = values.get('Unit', 'milliseconds')
-                if unit == 'milliseconds':
-                    delay /= 1000.0
-                
-                pyautogui.typewrite(text_to_type, interval=delay)
+            pyautogui.moveTo(x=int(x_pos), y=int(y_pos), duration=duration)
+        
+        elif node_type == 'key_press':
+            key_info = values.get('Key', {})
+            pynput_str = key_info.get('pynput', '')
+            if not pynput_str:
+                return next_exec_pin
 
-            elif node_type == 'loop': # For Loop
-                iterations = int(self.get_input_value(node_id, 'Iterations', 'number', 5))
-                loop_body_conn = next((c for c in self.connections if c['startNodeId'] == node_id and c['startPinName'] == 'Loop Body'), None)
-
-                if loop_body_conn:
-                    for i in range(iterations):
-                        if not self.is_running: break
-                        # Store the current index so it can be accessed by other nodes.
-                        self.node_outputs[node_id] = {'Index': i}
-                        # Execute the entire path connected to the 'Loop Body' pin.
-                        self.execute_path(loop_body_conn['endNodeId'])
-                
-                # After the loop is done, the next path to follow is 'Completed'.
-                next_exec_pin = 'Completed'
-
-            elif node_type == 'while_loop':
-                loop_body_conn = next((c for c in self.connections if c['startNodeId'] == node_id and c['startPinName'] == 'Loop Body'), None)
-                
-                if loop_body_conn:
-                    # Loop as long as the condition is true and the macro is running.
-                    while self.get_input_value(node_id, 'Condition', 'boolean', False) and self.is_running:
-                        self.execute_path(loop_body_conn['endNodeId'])
-
-                next_exec_pin = 'Completed'
+            if '+' not in pynput_str:
+                key_to_press = pynput_str.replace('<', '').replace('>', '')
+                pyautogui.press(key_to_press)
+            else:
+                keys = pynput_str.replace('<', '').replace('>', '').split('+')
+                pyautogui.hotkey(*keys)
+        
+        elif node_type == 'type_string':
+            text_to_type = self.get_input_value(node_id, 'Text', 'string', "")
+            delay = self.get_input_value(node_id, 'Delay', 'number', 50)
+            unit = values.get('Unit', 'milliseconds')
+            if unit == 'milliseconds':
+                delay /= 1000.0
             
-            elif node_type == 'if_statement':
-                condition = self.get_input_value(node_id, 'Condition', 'boolean', False)
-                if condition:
-                    next_exec_pin = 'True'
-                else:
-                    next_exec_pin = 'False'
-            
-            elif node_type == 'set_variable':
-                var_name = self.get_input_value(node_id, 'Name', 'string', '')
-                var_value = self.get_input_value(node_id, 'Value', 'any', None)
-                if var_name:
-                    self.variables[var_name] = var_value
-                    print(f"Variable '{var_name}' set to: {var_value}")
-            
-            elif node_type == 'call_function':
-                func_name = values.get('Function Name')
-                if func_name and func_name in self.functions:
-                    print(f"Calling function: {func_name}")
-                    self.execute_path(self.functions[func_name])
-                    print(f"Returned from function: {func_name}")
-            
-            elif node_type == 'return_from_function':
-                return 'FUNCTION_RETURN'
+            pyautogui.typewrite(text_to_type, interval=delay)
 
+        elif node_type == 'loop': # For Loop
+            iterations = int(self.get_input_value(node_id, 'Iterations', 'number', 5))
+            loop_body_conn = next((c for c in self.connections if c['startNodeId'] == node_id and c['startPinName'] == 'Loop Body'), None)
 
-        except Exception as e:
-            print(f"Error executing node {node_id}: {e}")
-            self.stop()
+            if loop_body_conn:
+                for i in range(iterations):
+                    if not self.is_running: break
+                    # Store the current index so it can be accessed by other nodes.
+                    self.node_outputs[node_id] = {'Index': i}
+                    # Execute the entire path connected to the 'Loop Body' pin.
+                    self.execute_path(loop_body_conn['endNodeId'])
+            
+            # After the loop is done, the next path to follow is 'Completed'.
+            next_exec_pin = 'Completed'
+
+        elif node_type == 'while_loop':
+            loop_body_conn = next((c for c in self.connections if c['startNodeId'] == node_id and c['startPinName'] == 'Loop Body'), None)
+            
+            if loop_body_conn:
+                # Loop as long as the condition is true and the macro is running.
+                while self.get_input_value(node_id, 'Condition', 'boolean', False) and self.is_running:
+                    self.execute_path(loop_body_conn['endNodeId'])
+
+            next_exec_pin = 'Completed'
+        
+        elif node_type == 'if_statement':
+            condition = self.get_input_value(node_id, 'Condition', 'boolean', False)
+            if condition:
+                next_exec_pin = 'True'
+            else:
+                next_exec_pin = 'False'
+        
+        elif node_type == 'set_variable':
+            var_name = self.get_input_value(node_id, 'Name', 'string', '')
+            var_value = self.get_input_value(node_id, 'Value', 'any', None)
+            if var_name:
+                self.variables[var_name] = var_value
+                print(f"Variable '{var_name}' set to: {var_value}")
+        
+        elif node_type == 'call_function':
+            func_name = values.get('Function Name')
+            if func_name and func_name in self.functions:
+                print(f"Calling function: {func_name}")
+                self.execute_path(self.functions[func_name])
+                print(f"Returned from function: {func_name}")
+        
+        elif node_type == 'return_from_function':
+            return 'FUNCTION_RETURN'
 
         return next_exec_pin
 

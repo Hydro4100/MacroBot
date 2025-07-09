@@ -275,6 +275,18 @@ document.addEventListener('DOMContentLoaded', () => {
             description: 'Returns execution from the current function.',
             execInputs: [{ name: 'exec' }]
         },
+        {
+            type: 'try_catch',
+            name: 'Try/Catch',
+            description: 'Attempts to run a block of code. If an error occurs, it runs a different block.',
+            tier: 'pro',
+            execInputs: [{ name: 'exec' }],
+            execOutputs: [
+                { name: 'Try', class: 'found' },
+                { name: 'Catch', class: 'not_found' },
+                { name: 'Completed' }
+            ]
+        },
 
         // --- DATA & LOGIC NODES (no execution pins) ---
         {
@@ -412,6 +424,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const header = document.createElement('div');
             header.classList.add('node-header');
             header.textContent = nodeInfo.name;
+
+            if (nodeInfo.tier === 'pro') {
+                const proBadge = document.createElement('span');
+                proBadge.classList.add('pro-badge');
+                proBadge.textContent = 'PRO';
+                header.appendChild(proBadge);
+            }
+
             node.appendChild(header);
 
             if (!isTemplate) {
