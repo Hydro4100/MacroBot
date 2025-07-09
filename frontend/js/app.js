@@ -891,14 +891,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (key === 'Shift') return 'shift';
         if (key === 'Alt') return 'alt';
         if (key === ' ') return 'space';
+        if (key === 'Escape') return 'esc';
+        if (key === 'PageUp') return 'page_up';
+        if (key === 'PageDown') return 'page_down';
         if (key.startsWith('Arrow')) return key.slice(5).toLowerCase();
+        // For F1-F12, Delete, Insert, Home, End, Tab, Enter, they are already lowercase or single word
         return key.toLowerCase();
     }
 
     function formatKeys(keys) {
         if (keys.size === 0) return null;
+        
+        const modifiers = new Set(['ctrl', 'shift', 'alt']);
+        const specialKeys = new Set([
+            'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
+            'enter', 'space', 'tab', 'esc', 'delete', 'insert', 'home', 'end', 'page_up', 'page_down',
+            'up', 'down', 'left', 'right'
+        ]);
+    
         const order = ['ctrl', 'shift', 'alt'];
-        const modifiers = new Set(order);
         
         const sorted = Array.from(keys).sort((a, b) => {
             const aIsMod = modifiers.has(a);
@@ -908,19 +919,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (aIsMod && bIsMod) return order.indexOf(a) - order.indexOf(b);
             return a.localeCompare(b);
         });
-
+    
         const displayString = sorted.map(key => {
             if (key === ' ') return 'Space';
-            return key.charAt(0).toUpperCase() + key.slice(1);
+            if (key.startsWith('page')) return key === 'page_up' ? 'Page Up' : 'Page Down';
+            return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
         }).join(' + ');
-
+    
         const pynputString = sorted.map(key => {
-            if (modifiers.has(key)) {
+            // Wrap modifiers and special keys in angle brackets
+            if (modifiers.has(key) || specialKeys.has(key)) {
                 return `<${key}>`;
             }
+            // For single character keys, just return the key
             return key;
         }).join('+');
-
+    
         return { display: displayString, pynput: pynputString };
     }
 
