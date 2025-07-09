@@ -131,6 +131,8 @@ class MacroRunner:
     def execute_path(self, start_node_id):
         """ Executes a chain of nodes starting from a given node ID. """
         current_node_id = start_node_id
+        call_stack = []
+
         while current_node_id and self.is_running:
             node = self.nodes.get(current_node_id)
             if not node:
@@ -148,11 +150,11 @@ class MacroRunner:
                 
                 try:
                     if try_conn:
-                        self.execute_path(try_conn.endNodeId)
+                        self.execute_path(try_conn['endNodeId'])
                 except Exception as e:
                     print(f"Caught exception in Try block, redirecting to Catch block: {e}")
                     if catch_conn:
-                        self.execute_path(catch_conn.endNodeId)
+                        self.execute_path(catch_conn['endNodeId'])
                     else:
                         print("Error in Try block, but no Catch path connected.")
                 
@@ -162,7 +164,9 @@ class MacroRunner:
             elif node.get('type') not in ['start', 'define_function']:
                 next_pin_name = self.execute_node(node)
                 if next_pin_name == 'FUNCTION_RETURN':
-                    return # Exit this path if it's a return from function
+                    if not call_stack: return 
+                    current_node_id = call_stack.pop()
+                    continue
 
             time.sleep(0.05)
 
