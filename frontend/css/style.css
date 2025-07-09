@@ -36,6 +36,7 @@
     --data-type-boolean: #bb9af7;
     --data-type-image_selector: #7aa2f7;
     --data-type-key_recorder: #c574dd;
+    --data-type-any: #9aa5ce; /* Neutral color for variables */
 }
 
 body.light-theme {
@@ -346,6 +347,7 @@ body.light-theme #coords-display { background-color: rgba(245, 246, 250, 0.8); b
 .pin-data-boolean { background-color: var(--data-type-boolean); }
 .pin-data-image_selector { background-color: var(--data-type-image_selector); }
 .pin-data-key_recorder { background-color: var(--data-type-key_recorder); }
+.pin-data-any { background-color: var(--data-type-any); }
 
 /* --- Wire Styling --- */
 .wire { stroke-width: 3px; fill: none; transition: stroke 0.2s; }
@@ -355,6 +357,7 @@ body.light-theme #coords-display { background-color: rgba(245, 246, 250, 0.8); b
 .wire-data-boolean { stroke: var(--data-type-boolean); }
 .wire-data-image_selector { stroke: var(--data-type-image_selector); }
 .wire-data-key_recorder { stroke: var(--data-type-key_recorder); }
+.wire-data-any { stroke: var(--data-type-any); }
 .wire-temporary { stroke-dasharray: 5, 5; }
 
 /* --- Node Inputs --- */

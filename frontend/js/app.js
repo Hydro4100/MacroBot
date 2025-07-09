@@ -250,6 +250,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 { name: 'Condition', type: 'boolean' }
             ]
         },
+        {
+            type: 'define_function',
+            name: 'Define Function',
+            description: 'Creates an entry point for a reusable function.',
+            execOutputs: [{ name: 'exec' }],
+            params: [
+                { name: 'Function Name', type: 'string', defaultValue: 'myFunction' }
+            ]
+        },
+        {
+            type: 'call_function',
+            name: 'Call Function',
+            description: 'Executes a previously defined function.',
+            execInputs: [{ name: 'exec' }],
+            execOutputs: [{ name: 'exec' }],
+            params: [
+                { name: 'Function Name', type: 'select', defaultValue: '', options: [] }
+            ]
+        },
+        {
+            type: 'return_from_function',
+            name: 'Return',
+            description: 'Returns execution from the current function.',
+            execInputs: [{ name: 'exec' }]
+        },
 
         // --- DATA & LOGIC NODES (no execution pins) ---
         {
@@ -271,8 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'Compare',
             description: 'Compares two values (A and B) and outputs a true/false result.',
             dataInputs: [
-                { name: 'A', type: 'number' },
-                { name: 'B', type: 'number' }
+                { name: 'A', type: 'any' },
+                { name: 'B', type: 'any' }
             ],
             params: [
                 { name: 'Type', type: 'select', defaultValue: 'number', options: ['Number', 'String'] },
@@ -295,6 +320,28 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             dataOutputs: [
                 { name: 'Result', type: 'number' }
+            ]
+        },
+        {
+            type: 'set_variable',
+            name: 'Set Variable',
+            description: 'Stores a value in a named variable.',
+            execInputs: [{ name: 'exec' }],
+            execOutputs: [{ name: 'exec' }],
+            dataInputs: [
+                { name: 'Name', type: 'string', defaultValue: 'myVar' },
+                { name: 'Value', type: 'any' }
+            ]
+        },
+        {
+            type: 'get_variable',
+            name: 'Get Variable',
+            description: 'Retrieves a value from a named variable.',
+            dataInputs: [
+                { name: 'Name', type: 'select', defaultValue: '', options: [], hasPin: false }
+            ],
+            dataOutputs: [
+                { name: 'Value', type: 'any' }
             ]
         },
         // --- COMMENT NODE ---
@@ -525,6 +572,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputElement.type = 'text';
                 inputElement.value = p_defaultValue || '';
                 inputElement.addEventListener('change', saveState);
+                if (nodeInfo.type === 'define_function' && paramInfo.name === 'Function Name') {
+                    inputElement.addEventListener('change', updateFunctionCallNodes);
+                }
+                if (nodeInfo.type === 'set_variable' && paramInfo.name === 'Name') {
+                    inputElement.addEventListener('change', updateVariableGetNodes);
+                }
                 break;
             case 'key_recorder':
                 inputElement = document.createElement('div');
@@ -610,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nodeElement = typeSelectElement.closest('.canvas-node');
         if (!nodeElement) return;
 
-        const newDataType = typeSelectElement.value; // 'number' or 'string'
+        const newDataType = typeSelectElement.value === 'string' ? 'string' : 'number'; // Default to number
         const nodeInfo = availableNodes.find(n => n.type === 'compare'); // Get the base node info
 
         // Update A and B pins
@@ -622,31 +675,14 @@ document.addEventListener('DOMContentLoaded', () => {
         pinWrappers.forEach(pinWrapper => {
             if (!pinWrapper) return;
             const pin = pinWrapper.querySelector('.node-pin');
-            const oldDataType = pinWrapper.dataset.dataType;
 
             // Disconnect wires if any
             removeConnections(pin);
 
-            // Update pin visuals and data type
-            pin.classList.remove(`pin-data-${oldDataType}`);
+            // Update pin visuals and data type for 'any' to specific
+            pin.classList.remove('pin-data-any');
             pin.classList.add(`pin-data-${newDataType}`);
             pinWrapper.dataset.dataType = newDataType;
-
-            // Remove old input field
-            const oldInputField = pinWrapper.querySelector('.pin-input-field');
-            if (oldInputField) {
-                oldInputField.remove();
-            }
-
-            // Create and add new input field
-            const newPinInfo = {
-                type: newDataType,
-                defaultValue: newDataType === 'number' ? 0 : ''
-            };
-            const newInputField = createParamInput(newPinInfo, nodeInfo, null);
-            newInputField.classList.add('pin-input-field');
-            pinWrapper.appendChild(newInputField);
-
         });
 
         // Update Operator dropdown
@@ -756,6 +792,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (startDir === endDir || startFlow !== endFlow) {
             return false;
+        }
+
+        // Allow 'any' type to connect to any other data type
+        if (startDataType === 'any' || endDataType === 'any') {
+            return true;
         }
 
         if (startFlow === 'data' && startDataType !== endDataType) {
@@ -965,9 +1006,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('menu-delete').addEventListener('click', () => {
         if (!activeNodeForMenu) return;
+        const nodeType = activeNodeForMenu.dataset.nodeType;
         activeNodeForMenu.querySelectorAll('.node-pin').forEach(pin => removeConnections(pin));
         activeNodeForMenu.remove();
         hideContextMenu();
+        if (nodeType === 'define_function') {
+            updateFunctionCallNodes();
+        }
+        if (nodeType === 'set_variable') {
+            updateVariableGetNodes();
+        }
         gatherAndRegisterHotkeys();
         saveState();
     });
@@ -977,8 +1025,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const nodeType = activeNodeForMenu.dataset.nodeType;
         const nodeInfo = availableNodes.find(n => n.type === nodeType);
 
-        if (nodeInfo.type === 'start') {
-            showError("A 'Start' node cannot be duplicated. Only one is allowed on the canvas.");
+        if (nodeInfo.type === 'start' || nodeInfo.type === 'define_function') {
+            showError(`A '${nodeInfo.name}' node cannot be duplicated.`);
             hideContextMenu();
             return;
         }
@@ -1104,9 +1152,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }); 
             makeDraggable(newNode); 
             makeResizable(newNode); 
-            if (nodeInfo.type === 'start') {
-                gatherAndRegisterHotkeys();
+            if (nodeInfo.type === 'define_function') {
+                updateFunctionCallNodes();
             }
+            if (nodeInfo.type === 'set_variable') {
+                updateVariableGetNodes();
+            }
+            gatherAndRegisterHotkeys();
             saveState();
         } 
     });
@@ -1537,48 +1589,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function serializeMacro(startNodeId) {
-        const relevantNodes = new Set();
-        const queue = [startNodeId];
-        
-        // Start traversal from the start node
-        if (!relevantNodes.has(startNodeId)) {
-            relevantNodes.add(startNodeId);
-        }
-        
-        let i = 0;
-        while(i < queue.length) {
-            const currentId = queue[i++];
-            
-            // Find all connections involving the current node
-            connections.forEach(conn => {
-                let otherNodeId = null;
-                if (conn.startNodeId === currentId) {
-                    otherNodeId = conn.endNodeId;
-                } else if (conn.endNodeId === currentId) {
-                    otherNodeId = conn.startNodeId;
-                }
-
-                if (otherNodeId && !relevantNodes.has(otherNodeId)) {
-                    relevantNodes.add(otherNodeId);
-                    queue.push(otherNodeId);
-                }
-            });
-        }
-
-        const serializedNodes = Array.from(relevantNodes).map(nodeId => {
-            const nodeEl = document.getElementById(nodeId);
-            if (!nodeEl) return null;
-            return serializeNode(nodeEl);
-        }).filter(n => n !== null);
-
-        const relevantConnections = connections.filter(c => 
-            relevantNodes.has(c.startNodeId) && relevantNodes.has(c.endNodeId)
-        );
-
+        const allNodes = [];
+        document.querySelectorAll('.canvas-node').forEach(nodeEl => {
+            allNodes.push(serializeNode(nodeEl));
+        });
         return {
             start_node_id: startNodeId,
-            nodes: serializedNodes,
-            connections: relevantConnections.map(c => ({...c, wire: null}))
+            nodes: allNodes,
+            connections: connections.map(c => ({...c, wire: null})) // Send all connections
         };
     }
     
@@ -1778,6 +1796,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 nodeContent.querySelectorAll('.conditional').forEach(el => updateConditionalVisibility(el, nodeContent));
             }
         });
+        updateFunctionCallNodes();
+        updateVariableGetNodes();
         gatherAndRegisterHotkeys();
         updateAllWires();
     }
@@ -1814,6 +1834,77 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUndoRedoButtons() {
         undoBtn.disabled = historyIndex <= 0;
         redoBtn.disabled = historyIndex >= history.length - 1;
+    }
+
+    // --- FUNCTION & VARIABLE NODE MANAGEMENT ---
+    function updateFunctionCallNodes() {
+        const definedFunctions = new Set();
+        document.querySelectorAll('.canvas-node[data-node-type="define_function"]').forEach(nodeEl => {
+            const input = nodeEl.querySelector('input[type="text"]');
+            if (input && input.value) {
+                definedFunctions.add(input.value);
+            }
+        });
+
+        document.querySelectorAll('.canvas-node[data-node-type="call_function"]').forEach(nodeEl => {
+            const select = nodeEl.querySelector('select');
+            const currentValue = select.value;
+            select.innerHTML = ''; // Clear existing options
+
+            if (definedFunctions.size === 0) {
+                const option = document.createElement('option');
+                option.textContent = 'No functions defined';
+                option.value = '';
+                select.appendChild(option);
+            } else {
+                definedFunctions.forEach(funcName => {
+                    const option = document.createElement('option');
+                    option.value = funcName;
+                    option.textContent = funcName;
+                    select.appendChild(option);
+                });
+            }
+
+            // Restore previous selection if it still exists
+            if (definedFunctions.has(currentValue)) {
+                select.value = currentValue;
+            }
+        });
+    }
+
+    function updateVariableGetNodes() {
+        const definedVariables = new Set();
+        document.querySelectorAll('.canvas-node[data-node-type="set_variable"]').forEach(nodeEl => {
+            const input = nodeEl.querySelector('.pin-wrapper[data-name="Name"] input');
+            if (input && input.value) {
+                definedVariables.add(input.value);
+            }
+        });
+
+        document.querySelectorAll('.canvas-node[data-node-type="get_variable"]').forEach(nodeEl => {
+            const select = nodeEl.querySelector('select');
+            const currentValue = select.value;
+            select.innerHTML = ''; // Clear existing options
+
+            if (definedVariables.size === 0) {
+                const option = document.createElement('option');
+                option.textContent = 'No variables set';
+                option.value = '';
+                select.appendChild(option);
+            } else {
+                definedVariables.forEach(varName => {
+                    const option = document.createElement('option');
+                    option.value = varName;
+                    option.textContent = varName;
+                    select.appendChild(option);
+                });
+            }
+
+            // Restore previous selection if it still exists
+            if (definedVariables.has(currentValue)) {
+                select.value = currentValue;
+            }
+        });
     }
 
 
@@ -1908,6 +1999,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateModal.classList.add('modal-hidden');
         });
 
+        updateFunctionCallNodes();
+        updateVariableGetNodes();
         gatherAndRegisterHotkeys();
         saveState(); // Save initial empty state
     }

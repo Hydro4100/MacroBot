@@ -18,7 +18,7 @@ except ImportError:
     pynput_installed = False
 
 # --- Application Version ---
-APP_VERSION = "0.1.2" # Using a standard versioning scheme
+APP_VERSION = "0.2.0" # Using a standard versioning scheme
 
 # --- Global State for Macro Execution ---
 macro_runner_instance = None
@@ -72,6 +72,18 @@ class MacroRunner:
         self.nodes = {node['id']: node for node in macro_data['nodes']}
         self.connections = macro_data['connections']
         self.node_outputs = {} # Stores dynamic outputs from nodes like loop index
+        self.variables = {} # Dictionary to store user-defined variables
+        self.functions = {} # Dictionary to store function entry points
+
+        # Pre-scan for function definitions
+        for node in self.nodes.values():
+            if node.get('type') == 'define_function':
+                func_name = node.get('values', {}).get('Function Name')
+                if func_name:
+                    # Find the node connected to the exec output of the define_function node
+                    entry_connection = next((c for c in self.connections if c['startNodeId'] == node['id'] and c['flow'] == 'exec'), None)
+                    if entry_connection:
+                        self.functions[func_name] = entry_connection['endNodeId']
 
     def stop(self):
         self.is_running = False
@@ -129,9 +141,13 @@ class MacroRunner:
             # The 'start' node doesn't have an action, it just directs flow.
             # For all other nodes, execute their action and determine the next path.
             next_pin_name = 'exec'
-            if node.get('type') != 'start':
+            if node.get('type') not in ['start', 'define_function']:
                 next_pin_name = self.execute_node(node)
             
+            # If the function returned, stop this execution path
+            if next_pin_name == 'FUNCTION_RETURN':
+                return
+
             time.sleep(0.05)
 
             if not self.is_running:
@@ -173,6 +189,7 @@ class MacroRunner:
             return None
 
         try:
+            if expected_type == 'any': return value # For variables, return the value as is
             if expected_type == 'number': return float(value)
             if expected_type == 'string': return str(value)
             if expected_type == 'boolean':
@@ -214,6 +231,11 @@ class MacroRunner:
         
         elif node_type == 'string_literal':
             return self.get_input_value(node_id, 'value', 'string', "")
+
+        elif node_type == 'get_variable':
+            var_name = self.get_input_value(node_id, 'Name', 'string', '')
+            # Return the value from the variables dictionary, defaulting to None if not found
+            return self.variables.get(var_name)
 
         elif node_type == 'math':
             values = node.get('values', {})
@@ -359,6 +381,24 @@ class MacroRunner:
                     next_exec_pin = 'True'
                 else:
                     next_exec_pin = 'False'
+            
+            elif node_type == 'set_variable':
+                var_name = self.get_input_value(node_id, 'Name', 'string', '')
+                var_value = self.get_input_value(node_id, 'Value', 'any', None)
+                if var_name:
+                    self.variables[var_name] = var_value
+                    print(f"Variable '{var_name}' set to: {var_value}")
+            
+            elif node_type == 'call_function':
+                func_name = values.get('Function Name')
+                if func_name and func_name in self.functions:
+                    print(f"Calling function: {func_name}")
+                    self.execute_path(self.functions[func_name])
+                    print(f"Returned from function: {func_name}")
+            
+            elif node_type == 'return_from_function':
+                return 'FUNCTION_RETURN'
+
 
         except Exception as e:
             print(f"Error executing node {node_id}: {e}")
