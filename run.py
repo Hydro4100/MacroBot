@@ -1,5 +1,6 @@
 import webview
 import os
+import sys
 import base64
 import pyautogui
 import json
@@ -17,7 +18,7 @@ except ImportError:
     pynput_installed = False
 
 # --- Application Version ---
-APP_VERSION = "0.1.2"
+APP_VERSION = "0.1.2" # Using a standard versioning scheme
 
 # --- Global State for Macro Execution ---
 macro_runner_instance = None
@@ -26,16 +27,23 @@ user_settings = {}
 
 # --- Helper function to get a file path ---
 def get_path(relative_path, user_data=False):
-    """ Get absolute path to resource, works for dev and for user data. """
+    """ Get absolute path to resource, works for dev and for PyInstaller """
     if user_data:
-        # Use a consistent user data directory
+        # Use a consistent user data directory for settings
         app_data_dir = os.path.join(os.path.expanduser("~"), ".MacroBot")
         if not os.path.exists(app_data_dir):
             os.makedirs(app_data_dir)
         return os.path.join(app_data_dir, relative_path)
     
-    # Path for frontend files
-    return os.path.join(os.path.dirname(__file__), "frontend", relative_path)
+    # This part is for bundled assets like index.html, css, js
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # We are running in a normal Python environment.
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, "frontend", relative_path)
 
 # --- Settings Management ---
 def load_user_settings():
@@ -544,6 +552,7 @@ class Api:
 if __name__ == '__main__':
     load_user_settings()
     api = Api()
+    # When running from the script, the frontend path is relative
     frontend_path = get_path('index.html')
 
     window = webview.create_window(
