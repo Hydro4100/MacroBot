@@ -17,7 +17,7 @@ except ImportError:
     pynput_installed = False
 
 # --- Application Version ---
-APP_VERSION = "0.1.1" # Using a standard versioning scheme
+APP_VERSION = "0.1.2"
 
 # --- Global State for Macro Execution ---
 macro_runner_instance = None
@@ -378,15 +378,21 @@ class HotkeyManager:
             hotkeys_to_listen = {}
             for hotkey_str, action in hotkey_config.items():
                 def on_activate(act=action):
-                    if act == 'emergency_stop':
-                        global macro_runner_instance
-                        if macro_runner_instance and macro_runner_instance.is_running:
-                            macro_runner_instance.stop()
-                            print("Emergency stop activated.")
-                    else:
-                        js_code = f"window.triggerMacroByHotkey('{act}')"
-                        self.window.evaluate_js(js_code)
-                
+                    # Define the work to be done in a separate function
+                    def work():
+                        if act == 'emergency_stop':
+                            global macro_runner_instance
+                            if macro_runner_instance and macro_runner_instance.is_running:
+                                macro_runner_instance.stop()
+                                print("Emergency stop activated.")
+                        else:
+                            # Call back to the frontend
+                            js_code = f"window.triggerMacroByHotkey('{act}')"
+                            self.window.evaluate_js(js_code)
+                    
+                    # Run the work in a new thread to ensure the listener doesn't block
+                    threading.Thread(target=work, daemon=True).start()
+
                 hotkeys_to_listen[hotkey_str] = on_activate
             
             if hotkeys_to_listen:
