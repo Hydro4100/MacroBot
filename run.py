@@ -17,7 +17,7 @@ except ImportError:
     pynput_installed = False
 
 # --- Application Version ---
-APP_VERSION = "0.1.2" # Using a standard versioning scheme
+APP_VERSION = "0.1.2"
 
 # --- Global State for Macro Execution ---
 macro_runner_instance = None
