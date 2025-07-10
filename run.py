@@ -533,6 +533,30 @@ class Api:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    def save_session(self, session_data):
+        """ Saves the entire session (all tabs) to session.json """
+        try:
+            session_path = get_path("session.json", user_data=True)
+            with open(session_path, 'w') as f:
+                json.dump(session_data, f, indent=4)
+            return {'success': True}
+        except Exception as e:
+            print(f"Error saving session: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def load_session(self):
+        """ Loads the session from session.json """
+        session_path = get_path("session.json", user_data=True)
+        if os.path.exists(session_path):
+            try:
+                with open(session_path, 'r') as f:
+                    session_data = json.load(f)
+                return {'success': True, 'data': session_data}
+            except Exception as e:
+                print(f"Error loading session: {e}")
+                return {'success': False, 'error': str(e)}
+        return {'success': True, 'data': None} # No session file found is not an error
+
     def register_hotkeys(self, hotkeys):
         """ Receives hotkey configuration from JS and updates the listener. """
         global hotkey_manager
