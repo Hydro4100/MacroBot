@@ -1,8 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
-    // --- INITIALIZATION & STATE ---
+    // --- DOM & ELEMENT REFERENCES ---
     // =========================================================================
-    const sidebar = document.getElementById('node-sidebar');
+    const tabContainer = document.getElementById('tab-container');
+    const tabList = document.getElementById('tab-list');
+    const addTabBtn = document.getElementById('add-tab-btn');
     const nodeList = document.getElementById('node-list');
     const canvas = document.getElementById('canvas');
     const canvasContent = document.getElementById('canvas-content');
@@ -52,13 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateDownloadBtn = document.getElementById('update-download-btn');
     const updateDismissBtn = document.getElementById('update-dismiss-btn');
     
+    // =========================================================================
+    // --- STATE MANAGEMENT ---
+    // =========================================================================
+    let tabs = [];
+    let activeTabId = null;
+    
     let activeNodeForMenu = null;
-    let nodeIdCounter = 0;
-    let connections = [];
     let isDrawingWire = false;
     let tempWire = null;
     let startPin = null;
-    let panX = 0, panY = 0, scale = 1;
     let isPanning = false;
     const MIN_ZOOM = 0.2, MAX_ZOOM = 2.0;
     let isRecordingKey = false;
@@ -67,32 +72,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let recordingTimeout = null;
     let confirmCallback = null;
     let lastCanvasContextMenuPos = { x: 0, y: 0 };
-    let history = [];
-    let historyIndex = -1;
     let minimapBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
     let isDraggingMinimap = false;
 
-
     // --- Settings State ---
     const defaultSettings = {
-        general: {
-            theme: 'dark',
-            showErrors: true,
-        },
-        canvas: {
-            snapToGrid: false,
-            gridSnapSize: 20,
-            wireStyle: 'curved',
-        },
-        hotkeys: {
-            emergencyStop: 'Not Set',
-            undo: '<ctrl>+z',
-            redo: '<ctrl>+y',
-        }
+        general: { theme: 'dark', showErrors: true },
+        canvas: { snapToGrid: false, gridSnapSize: 20, wireStyle: 'curved' },
+        hotkeys: { emergencyStop: 'Not Set', undo: '<ctrl>+z', redo: '<ctrl>+y' }
     };
     let appSettings = JSON.parse(JSON.stringify(defaultSettings));
 
-
+    // =========================================================================
+    // --- NODE DEFINITIONS ---
+    // =========================================================================
     const availableNodes = [
         // --- EXECUTION NODES ---
         {
@@ -364,8 +357,197 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     ];
 
-    function updateCanvasTransform() { canvasContent.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`; updateMinimap(); }
-    function screenToCanvas(screenX, screenY) { const canvasRect = canvas.getBoundingClientRect(); return { x: (screenX - canvasRect.left - panX) / scale, y: (screenY - canvasRect.top - panY) / scale }; }
+    // =========================================================================
+    // --- TAB MANAGEMENT ---
+    // =========================================================================
+    
+    function createNewTabState(name) {
+        return {
+            id: `tab-${Date.now()}-${Math.random()}`,
+            name: name || 'Untitled',
+            history: [],
+            historyIndex: -1,
+            // Canvas state
+            connections: [],
+            panX: 0,
+            panY: 0,
+            scale: 1,
+            nodeIdCounter: 0,
+        };
+    }
+
+    function getActiveTab() {
+        return tabs.find(t => t.id === activeTabId);
+    }
+    
+    function addTab(state) {
+        const newTabState = state || createNewTabState();
+        tabs.push(newTabState);
+        switchTab(newTabState.id);
+        renderTabs();
+    }
+    
+    function switchTab(tabId) {
+        if (activeTabId === tabId) return;
+
+        // Save current canvas state before switching
+        const currentTab = getActiveTab();
+        if (currentTab) {
+            currentTab.canvasState = serializeCanvas();
+        }
+
+        // Set new active tab
+        activeTabId = tabId;
+
+        // Load new tab's state
+        const newTab = getActiveTab();
+        if (newTab && newTab.canvasState) {
+            deserializeCanvas(newTab.canvasState);
+        } else {
+            // It's a fresh tab, clear the canvas
+            clearCanvas();
+        }
+        
+        // Save initial state for the new tab's history
+        saveState();
+        renderTabs();
+        updateUndoRedoButtons();
+    }
+
+    function closeTab(tabId) {
+        const tabIndex = tabs.findIndex(t => t.id === tabId);
+        if (tabIndex === -1) return;
+
+        tabs.splice(tabIndex, 1);
+
+        if (activeTabId === tabId) {
+            if (tabs.length > 0) {
+                // Switch to the previous tab, or the first one if the closed tab was the first
+                const newActiveIndex = Math.max(0, tabIndex - 1);
+                switchTab(tabs[newActiveIndex].id);
+            } else {
+                // If the last tab was closed, create a new one
+                addTab();
+            }
+        }
+        
+        renderTabs();
+    }
+
+    function renameTab(tabId, newName) {
+        const tab = tabs.find(t => t.id === tabId);
+        if (tab) {
+            tab.name = newName;
+            renderTabs();
+        }
+    }
+
+    function renderTabs() {
+        tabList.innerHTML = '';
+        tabs.forEach(tab => {
+            const tabEl = document.createElement('li');
+            tabEl.className = 'tab';
+            tabEl.dataset.tabId = tab.id;
+            if (tab.id === activeTabId) {
+                tabEl.classList.add('active');
+            }
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'tab-name';
+            nameSpan.textContent = tab.name;
+            tabEl.appendChild(nameSpan);
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'tab-close-btn';
+            closeBtn.innerHTML = '&times;';
+            tabEl.appendChild(closeBtn);
+            
+            tabList.appendChild(tabEl);
+        });
+    }
+
+    tabContainer.addEventListener('click', (e) => {
+        const tabEl = e.target.closest('.tab');
+        if (!tabEl) return;
+
+        const tabId = tabEl.dataset.tabId;
+        if (e.target.classList.contains('tab-close-btn')) {
+            e.stopPropagation();
+            closeTab(tabId);
+        } else {
+            switchTab(tabId);
+        }
+    });
+    
+    tabList.addEventListener('dblclick', (e) => {
+        const nameSpan = e.target.closest('.tab-name');
+        if (!nameSpan) return;
+        
+        const tabEl = nameSpan.closest('.tab');
+        const tabId = tabEl.dataset.tabId;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'tab-name-input';
+        input.value = nameSpan.textContent;
+        
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const finishEditing = () => {
+            const newName = input.value.trim() || 'Untitled';
+            renameTab(tabId, newName);
+            // The renderTabs() call will replace the input with a span
+        };
+
+        input.addEventListener('blur', finishEditing);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+            } else if (e.key === 'Escape') {
+                input.value = nameSpan.textContent; // Revert
+                input.blur();
+            }
+        });
+    });
+
+    addTabBtn.addEventListener('click', () => addTab());
+
+    // =========================================================================
+    // --- CANVAS & VIEWPORT ---
+    // =========================================================================
+    function updateCanvasTransform() { 
+        const tab = getActiveTab();
+        if (!tab) return;
+        canvasContent.style.transform = `translate(${tab.panX}px, ${tab.panY}px) scale(${tab.scale})`; 
+        updateMinimap(); 
+    }
+    function screenToCanvas(screenX, screenY) { 
+        const tab = getActiveTab();
+        if (!tab) return { x: 0, y: 0 };
+        const canvasRect = canvas.getBoundingClientRect(); 
+        return { 
+            x: (screenX - canvasRect.left - tab.panX) / tab.scale, 
+            y: (screenY - canvasRect.top - tab.panY) / tab.scale 
+        }; 
+    }
+
+    function clearCanvas() {
+        const tab = getActiveTab();
+        if (!tab) return;
+        
+        canvasContent.querySelectorAll('.canvas-node').forEach(n => n.remove());
+        svgLayer.innerHTML = '';
+        tab.connections = [];
+        tab.panX = 0;
+        tab.panY = 0;
+        tab.scale = 1;
+        tab.nodeIdCounter = 0;
+        updateCanvasTransform();
+        gatherAndRegisterHotkeys();
+    }
+
 
     // --- MODAL LOGIC ---
     function showError(message) {
@@ -373,31 +555,21 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage.textContent = message;
         errorModal.classList.remove('modal-hidden');
     }
-    function hideError() {
-        errorModal.classList.add('modal-hidden');
-    }
+    function hideError() { errorModal.classList.add('modal-hidden'); }
     errorModalClose.addEventListener('click', hideError);
 
     function showConfirm(message, callback) {
-        const confirmNoBtn = document.getElementById('confirm-no');
-        const confirmYesBtn = document.getElementById('confirm-yes');
-        confirmNoBtn.style.display = 'inline-block';
-        confirmYesBtn.textContent = 'Yes';
-        
         confirmMessage.textContent = message;
         confirmCallback = callback;
         confirmModal.classList.remove('modal-hidden');
+        confirmNoBtn.style.display = 'inline-block';
+        confirmYesBtn.textContent = 'Yes';
     }
     function hideConfirm() {
         confirmModal.classList.add('modal-hidden');
         confirmCallback = null;
     }
-    confirmYesBtn.addEventListener('click', () => {
-        if (confirmCallback) {
-            confirmCallback();
-        }
-        hideConfirm();
-    });
+    confirmYesBtn.addEventListener('click', () => { if (confirmCallback) { confirmCallback(); } hideConfirm(); });
     confirmNoBtn.addEventListener('click', hideConfirm);
 
 
@@ -838,7 +1010,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function validateAndBreakConnection(numberLiteralNode) {
-        const connection = connections.find(c => c.startNodeId === numberLiteralNode.id);
+        const tab = getActiveTab();
+        if (!tab) return;
+        const connection = tab.connections.find(c => c.startNodeId === numberLiteralNode.id);
         if (!connection) return;
 
         const endNodeEl = document.getElementById(connection.endNodeId);
@@ -879,8 +1053,62 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    function createConnection(startPin, endPin) { const startWrapper = startPin.closest('.pin-wrapper'); const endWrapper = endPin.closest('.pin-wrapper'); if (endWrapper.dataset.flow === 'data' && endWrapper.dataset.direction === 'input') { removeConnections(endPin); } const startNode = startPin.closest('.canvas-node'); const endNode = endPin.closest('.canvas-node'); const conn = { id: `conn-${Date.now()}`, startNodeId: startNode.id, startPinName: startWrapper.dataset.name, endNodeId: endNode.id, endPinName: endWrapper.dataset.name, flow: startWrapper.dataset.flow, wire: document.createElementNS('http://www.w3.org/2000/svg', 'path') }; conn.wire.classList.add('wire', `wire-${conn.flow}`); if(conn.flow === 'data') { const dataType = startWrapper.dataset.dataType; conn.wire.classList.add(`wire-data-${dataType}`); } svgLayer.appendChild(conn.wire); connections.push(conn); endWrapper.classList.add('connected'); updateAllWires(); saveState(); }
-    function removeConnections(pinElement) { const pinWrapper = pinElement.closest('.pin-wrapper'); const nodeId = pinElement.closest('.canvas-node').id; const pinDirection = pinWrapper.dataset.direction; const pinName = pinWrapper.dataset.name; connections = connections.filter(conn => { const isStart = (pinDirection === 'output' && conn.startNodeId === nodeId && conn.startPinName === pinName); const isEnd = (pinDirection === 'input' && conn.endNodeId === nodeId && conn.endPinName === pinName); if (isStart || isEnd) { conn.wire.remove(); if(isEnd) { const endNode = document.getElementById(conn.endNodeId); if(endNode) { const wrapper = endNode.querySelector(`.pin-wrapper[data-name="${conn.endPinName}"][data-direction="input"]`); if(wrapper) wrapper.classList.remove('connected'); } } return false; } return true; }); updateAllWires(); saveState(); }
+    function createConnection(startPin, endPin) { 
+        const tab = getActiveTab();
+        if (!tab) return;
+        const startWrapper = startPin.closest('.pin-wrapper'); 
+        const endWrapper = endPin.closest('.pin-wrapper'); 
+        if (endWrapper.dataset.flow === 'data' && endWrapper.dataset.direction === 'input') { removeConnections(endPin); } 
+        const startNode = startPin.closest('.canvas-node'); 
+        const endNode = endPin.closest('.canvas-node'); 
+        const conn = { 
+            id: `conn-${Date.now()}`, 
+            startNodeId: startNode.id, 
+            startPinName: startWrapper.dataset.name, 
+            endNodeId: endNode.id, 
+            endPinName: endWrapper.dataset.name, 
+            flow: startWrapper.dataset.flow, 
+            wire: document.createElementNS('http://www.w3.org/2000/svg', 'path') 
+        }; 
+        conn.wire.classList.add('wire', `wire-${conn.flow}`); 
+        if(conn.flow === 'data') { 
+            const dataType = startWrapper.dataset.dataType; 
+            conn.wire.classList.add(`wire-data-${dataType}`); 
+        } 
+        svgLayer.appendChild(conn.wire); 
+        tab.connections.push(conn); 
+        endWrapper.classList.add('connected'); 
+        updateAllWires(); 
+        saveState(); 
+    }
+    
+    function removeConnections(pinElement) {
+        const tab = getActiveTab();
+        if (!tab) return;
+        const pinWrapper = pinElement.closest('.pin-wrapper');
+        const nodeId = pinElement.closest('.canvas-node').id;
+        const pinDirection = pinWrapper.dataset.direction;
+        const pinName = pinWrapper.dataset.name;
+        
+        tab.connections = tab.connections.filter(conn => {
+            const isStart = (pinDirection === 'output' && conn.startNodeId === nodeId && conn.startPinName === pinName);
+            const isEnd = (pinDirection === 'input' && conn.endNodeId === nodeId && conn.endPinName === pinName);
+            if (isStart || isEnd) {
+                if (conn.wire) conn.wire.remove();
+                if(isEnd) {
+                    const endNode = document.getElementById(conn.endNodeId);
+                    if(endNode) {
+                        const wrapper = endNode.querySelector(`.pin-wrapper[data-name="${conn.endPinName}"][data-direction="input"]`);
+                        if(wrapper) wrapper.classList.remove('connected');
+                    }
+                }
+                return false;
+            }
+            return true;
+        });
+        updateAllWires();
+        saveState();
+    }
     
     function updateWirePath(wire, startX, startY, endX, endY) {
         let path;
@@ -893,8 +1121,35 @@ document.addEventListener('DOMContentLoaded', () => {
         wire.setAttribute('d', path);
     }
     
-    function updateAllWires() { connections.forEach(conn => { const startNode = document.getElementById(conn.startNodeId); const endNode = document.getElementById(conn.endNodeId); if (startNode && endNode) { const startPin = startNode.querySelector(`.pin-wrapper[data-name="${conn.startPinName}"][data-direction="output"] .node-pin`); const endPin = endNode.querySelector(`.pin-wrapper[data-name="${conn.endPinName}"][data-direction="input"] .node-pin`); if (startPin && endPin) { const startPos = getPinPosition(startPin); const endPos = getPinPosition(endPin); updateWirePath(conn.wire, startPos.x, startPos.y, endPos.x, endPos.y); } } }); updateMinimap(); }
-    function getPinPosition(pinElement) { const pinRect = pinElement.getBoundingClientRect(); const canvasRect = canvas.getBoundingClientRect(); return { x: (pinRect.left + pinRect.width / 2 - canvasRect.left - panX) / scale, y: (pinRect.top + pinRect.height / 2 - canvasRect.top - panY) / scale }; }
+    function updateAllWires() { 
+        const tab = getActiveTab();
+        if (!tab) return;
+        tab.connections.forEach(conn => { 
+            const startNode = document.getElementById(conn.startNodeId); 
+            const endNode = document.getElementById(conn.endNodeId); 
+            if (startNode && endNode) { 
+                const startPin = startNode.querySelector(`.pin-wrapper[data-name="${conn.startPinName}"][data-direction="output"] .node-pin`); 
+                const endPin = endNode.querySelector(`.pin-wrapper[data-name="${conn.endPinName}"][data-direction="input"] .node-pin`); 
+                if (startPin && endPin) { 
+                    const startPos = getPinPosition(startPin); 
+                    const endPos = getPinPosition(endPin); 
+                    updateWirePath(conn.wire, startPos.x, startPos.y, endPos.x, endPos.y); 
+                } 
+            } 
+        }); 
+        updateMinimap(); 
+    }
+    
+    function getPinPosition(pinElement) { 
+        const tab = getActiveTab();
+        if (!tab) return {x:0, y:0};
+        const pinRect = pinElement.getBoundingClientRect(); 
+        const canvasRect = canvas.getBoundingClientRect(); 
+        return { 
+            x: (pinRect.left + pinRect.width / 2 - canvasRect.left - tab.panX) / tab.scale, 
+            y: (pinRect.top + pinRect.height / 2 - canvasRect.top - tab.panY) / tab.scale 
+        }; 
+    }
 
     // --- KEY RECORDER LOGIC & HOTKEY REGISTRATION ---
     function startKeyRecording(e) {
@@ -1042,6 +1297,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('menu-duplicate').addEventListener('click', () => {
         if (!activeNodeForMenu) return;
+        const tab = getActiveTab();
+        if (!tab) return;
+
         const nodeType = activeNodeForMenu.dataset.nodeType;
         const nodeInfo = availableNodes.find(n => n.type === nodeType);
 
@@ -1053,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (nodeInfo) {
             const newNode = createNodeElement(nodeInfo, false);
-            newNode.id = `node-${nodeIdCounter++}`;
+            newNode.id = `node-${tab.nodeIdCounter++}`;
             
             newNode.style.left = `${activeNodeForMenu.offsetLeft + 40}px`;
             newNode.style.top = `${activeNodeForMenu.offsetTop + 40}px`;
@@ -1136,6 +1394,9 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('dragover', (e) => e.preventDefault());
     canvas.addEventListener('drop', (e) => { 
         e.preventDefault(); 
+        const tab = getActiveTab();
+        if (!tab) return;
+        
         const dragDataString = e.dataTransfer.getData('application/json'); 
         if (!dragDataString) return; 
         const dragData = JSON.parse(dragDataString); 
@@ -1147,11 +1408,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const newNode = createNodeElement(nodeInfo, false); 
-            newNode.id = `node-${nodeIdCounter++}`; 
+            newNode.id = `node-${tab.nodeIdCounter++}`; 
             const dropPos = screenToCanvas(e.clientX, e.clientY); 
             
-            let dropX = dropPos.x - (dragData.offsetX / scale);
-            let dropY = dropPos.y - (dragData.offsetY / scale);
+            let dropX = dropPos.x - (dragData.offsetX / tab.scale);
+            let dropY = dropPos.y - (dragData.offsetY / tab.scale);
 
             if (appSettings.canvas.snapToGrid) {
                 dropX = Math.round(dropX / appSettings.canvas.gridSnapSize) * appSettings.canvas.gridSnapSize;
@@ -1186,6 +1447,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function makeDraggable(element) { 
         let startX, startY; 
         function onMouseDown(e) { 
+            const tab = getActiveTab();
+            if (!tab) return;
             const isComment = element.classList.contains('comment-node');
             const isHeader = e.target.classList.contains('node-header');
 
@@ -1201,8 +1464,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.addEventListener('mouseup', onMouseUp); 
         } 
         function onMouseMove(e) { 
-            const dx = (e.clientX - startX) / scale; 
-            const dy = (e.clientY - startY) / scale; 
+            const tab = getActiveTab();
+            if (!tab) return;
+            const dx = (e.clientX - startX) / tab.scale; 
+            const dy = (e.clientY - startY) / tab.scale; 
             startX = e.clientX; 
             startY = e.clientY; 
             element.style.left = `${element.offsetLeft + dx}px`; 
@@ -1210,6 +1475,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateAllWires(); 
         } 
         function onMouseUp(e) { 
+            const tab = getActiveTab();
+            if (!tab) return;
             element.style.zIndex = 100; 
             document.removeEventListener('mousemove', onMouseMove); 
             document.removeEventListener('mouseup', onMouseUp);
@@ -1246,8 +1513,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function onMouseMove(e) {
-            const newWidth = startWidth + (e.clientX - startX) / scale;
-            const newHeight = startHeight + (e.clientY - startY) / scale;
+            const tab = getActiveTab();
+            if (!tab) return;
+            const newWidth = startWidth + (e.clientX - startX) / tab.scale;
+            const newHeight = startHeight + (e.clientY - startY) / tab.scale;
             element.style.width = `${Math.max(newWidth, minWidth)}px`;
             element.style.height = `${Math.max(newHeight, minHeight)}px`;
             updateAllWires();
@@ -1263,13 +1532,52 @@ document.addEventListener('DOMContentLoaded', () => {
         handle.addEventListener('mousedown', onMouseDown);
     }
 
-    canvas.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); isPanning = true; canvas.classList.add('panning'); } });
-    canvas.addEventListener('mousemove', (e) => { if (isPanning) { panX += e.movementX; panY += e.movementY; updateCanvasTransform(); } });
-    window.addEventListener('mouseup', (e) => { if (e.button === 1) { isPanning = false; canvas.classList.remove('panning'); } });
-    canvas.addEventListener('wheel', (e) => { e.preventDefault(); const zoomIntensity = 0.1; const wheel = e.deltaY < 0 ? 1 : -1; const oldScale = scale; const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, scale * Math.exp(wheel * zoomIntensity))); const scaleRatio = newScale / oldScale; const canvasRect = canvas.getBoundingClientRect(); const mouseX = e.clientX - canvasRect.left; const mouseY = e.clientY - canvasRect.top; panX = mouseX - (mouseX - panX) * scaleRatio; panY = mouseY - (mouseY - panY) * scaleRatio; scale = newScale; updateCanvasTransform(); });
+    canvas.addEventListener('mousedown', (e) => { 
+        const tab = getActiveTab();
+        if (!tab) return;
+        if (e.button === 1) { 
+            e.preventDefault(); 
+            isPanning = true; 
+            canvas.classList.add('panning'); 
+        } 
+    });
+    canvas.addEventListener('mousemove', (e) => { 
+        const tab = getActiveTab();
+        if (!tab) return;
+        if (isPanning) { 
+            tab.panX += e.movementX; 
+            tab.panY += e.movementY; 
+            updateCanvasTransform(); 
+        } 
+    });
+    window.addEventListener('mouseup', (e) => { 
+        if (e.button === 1) { 
+            isPanning = false; 
+            canvas.classList.remove('panning'); 
+        } 
+    });
+    canvas.addEventListener('wheel', (e) => { 
+        e.preventDefault(); 
+        const tab = getActiveTab();
+        if (!tab) return;
+        const zoomIntensity = 0.1; 
+        const wheel = e.deltaY < 0 ? 1 : -1; 
+        const oldScale = tab.scale; 
+        const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, tab.scale * Math.exp(wheel * zoomIntensity))); 
+        const scaleRatio = newScale / oldScale; 
+        const canvasRect = canvas.getBoundingClientRect(); 
+        const mouseX = e.clientX - canvasRect.left; 
+        const mouseY = e.clientY - canvasRect.top; 
+        tab.panX = mouseX - (mouseX - tab.panX) * scaleRatio; 
+        tab.panY = mouseY - (mouseY - tab.panY) * scaleRatio; 
+        tab.scale = newScale; 
+        updateCanvasTransform(); 
+    });
 
     // --- MINIMAP LOGIC ---
     function updateMinimap() {
+        const tab = getActiveTab();
+        if (!tab) return;
         const nodes = document.querySelectorAll('.canvas-node');
         if (nodes.length === 0) {
             minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
@@ -1314,10 +1622,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 4. Update the viewport rectangle
         const canvasRect = canvas.getBoundingClientRect();
-        const viewLeft = (-panX / scale - minimapBounds.minX) * minimapScale;
-        const viewTop = (-panY / scale - minimapBounds.minY) * minimapScale;
-        const viewWidth = (canvasRect.width / scale) * minimapScale;
-        const viewHeight = (canvasRect.height / scale) * minimapScale;
+        const viewLeft = (-tab.panX / tab.scale - minimapBounds.minX) * minimapScale;
+        const viewTop = (-tab.panY / tab.scale - minimapBounds.minY) * minimapScale;
+        const viewWidth = (canvasRect.width / tab.scale) * minimapScale;
+        const viewHeight = (canvasRect.height / tab.scale) * minimapScale;
         
         minimapViewport.style.display = 'block';
         minimapViewport.style.left = `${viewLeft}px`;
@@ -1327,6 +1635,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onMinimapNavigate(e) {
+        const tab = getActiveTab();
+        if (!tab) return;
         const minimapRect = minimap.getBoundingClientRect();
         const worldWidth = minimapBounds.maxX - minimapBounds.minX;
         const worldHeight = minimapBounds.maxY - minimapBounds.minY;
@@ -1342,8 +1652,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetWorldY = (clickY / minimapScale) + minimapBounds.minY;
 
         const canvasRect = canvas.getBoundingClientRect();
-        panX = -targetWorldX * scale + (canvasRect.width / 2);
-        panY = -targetWorldY * scale + (canvasRect.height / 2);
+        tab.panX = -targetWorldX * tab.scale + (canvasRect.width / 2);
+        tab.panY = -targetWorldY * tab.scale + (canvasRect.height / 2);
 
         updateCanvasTransform();
     }
@@ -1459,23 +1769,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FILE & VALIDATION BUTTONS ---
     newBtn.addEventListener('click', () => {
-        showConfirm("Are you sure you want to clear the canvas? All unsaved work will be lost.", () => {
-            canvasContent.querySelectorAll('.canvas-node').forEach(n => n.remove());
-            svgLayer.innerHTML = '';
-            connections = [];
-            panX = 0; panY = 0; scale = 1;
-            updateCanvasTransform();
-            gatherAndRegisterHotkeys();
-            saveState();
+        showConfirm("Are you sure you want to clear the current project? All unsaved work will be lost.", () => {
+            clearCanvas();
+            saveState(); // Save the cleared state
         });
     });
 
     saveBtn.addEventListener('click', async () => {
+        const tab = getActiveTab();
+        if (!tab) return;
+    
         const savePath = await window.pywebview.api.open_save_dialog();
         if (!savePath) return;
+    
         const canvasData = serializeCanvas();
         const result = await window.pywebview.api.save_file(savePath, canvasData);
-        if (!result.success) { showError(`Failed to save file: ${result.error}`); }
+        
+        if (result.success) {
+            if (result.filename) {
+                const tabName = result.filename.replace(/\.(macro|json)$/i, '');
+                renameTab(tab.id, tabName);
+            }
+        } else {
+            showError(`Failed to save file: ${result.error}`);
+        }
     });
 
     importBtn.addEventListener('click', async () => {
@@ -1484,8 +1801,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await window.pywebview.api.load_file(loadPath);
         if (result.success) {
             try {
+                // Create a new tab for the imported file
+                const filename = result.filename;
+                const tabName = filename ? filename.replace(/\.(macro|json)$/i, '') : 'Untitled';
+                
+                const newTabState = createNewTabState(tabName);
+                addTab(newTabState); // This creates the tab and switches to it
+    
+                // deserializeCanvas loads into the *active* tab, which is now the new one.
                 deserializeCanvas(result.data);
                 saveState(); // Save the imported state as the new initial state
+    
             } catch (err) {
                 console.error("Error deserializing canvas:", err);
                 showError("Failed to load macro. The file may be corrupted or in an invalid format.");
@@ -1496,6 +1822,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     validateBtn.addEventListener('click', () => {
+        const tab = getActiveTab();
+        if (!tab) return;
         const warnings = new Set();
         const allNodes = new Map();
         const executionNodes = new Set();
@@ -1512,7 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             if (nodeInfo.type !== 'start') {
                 (nodeInfo.execInputs || []).forEach(inputPin => {
-                    const isConnected = connections.some(c => c.endNodeId === nodeEl.id && c.endPinName === inputPin.name);
+                    const isConnected = tab.connections.some(c => c.endNodeId === nodeEl.id && c.endPinName === inputPin.name);
                     if (!isConnected) {
                         warnings.add(`Node "${nodeInfo.name}" has an unconnected execution input.`);
                         nodeEl.classList.add('warning');
@@ -1533,7 +1861,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 while (queue.length > 0) {
                     const currentId = queue.shift();
-                    const outgoingConns = connections.filter(c => c.startNodeId === currentId && c.flow === 'exec');
+                    const outgoingConns = tab.connections.filter(c => c.startNodeId === currentId && c.flow === 'exec');
                     outgoingConns.forEach(conn => {
                         if (!visitedNodes.has(conn.endNodeId)) {
                             visitedNodes.add(conn.endNodeId);
@@ -1586,7 +1914,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function gatherAndRegisterHotkeys() {
         const hotkeys = {};
-        // Gather hotkeys from Start nodes
+        // Gather hotkeys from Start nodes on the CURRENT canvas
         document.querySelectorAll('.canvas-node[data-node-type="start"]').forEach(nodeEl => {
             const hotkeyInput = nodeEl.querySelector('.key-recorder-input');
             const pynputHotkey = hotkeyInput.dataset.pynputValue;
@@ -1609,6 +1937,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function serializeMacro(startNodeId) {
+        const tab = getActiveTab();
+        if (!tab) return null;
         const allNodes = [];
         document.querySelectorAll('.canvas-node').forEach(nodeEl => {
             allNodes.push(serializeNode(nodeEl));
@@ -1616,11 +1946,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             start_node_id: startNodeId,
             nodes: allNodes,
-            connections: connections.map(c => ({...c, wire: null})) // Send all connections
+            connections: tab.connections.map(c => ({...c, wire: null}))
         };
     }
     
-    // Make this function globally accessible so Python can call it
     window.triggerMacroByHotkey = (hotkeyAction) => {
         if (hotkeyAction === 'undo') {
             undo();
@@ -1636,7 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const startNode = document.getElementById(startNodeId);
         if (startNode) {
             const macroData = serializeMacro(startNodeId);
-            window.pywebview.api.run_macro(macroData);
+            if (macroData) window.pywebview.api.run_macro(macroData);
         } else {
             console.error(`Start node with ID ${startNodeId} not found for hotkey.`);
         }
@@ -1645,17 +1974,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SERIALIZATION & DESERIALIZATION ---
     function serializeCanvas() {
+        const tab = getActiveTab();
+        if (!tab) return {};
+
         const nodes = [];
         document.querySelectorAll('.canvas-node').forEach(nodeEl => {
             nodes.push(serializeNode(nodeEl));
         });
         return {
             nodes: nodes,
-            connections: connections.map(c => ({...c, wire: null})), // Don't save the wire element
-            panX: panX,
-            panY: panY,
-            scale: scale,
-            nodeIdCounter: nodeIdCounter
+            connections: tab.connections.map(c => ({...c, wire: null})),
+            panX: tab.panX,
+            panY: tab.panY,
+            scale: tab.scale,
+            nodeIdCounter: tab.nodeIdCounter
         };
     }
     
@@ -1708,14 +2040,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function deserializeCanvas(data) {
-        canvasContent.querySelectorAll('.canvas-node').forEach(n => n.remove());
-        svgLayer.innerHTML = '';
-        connections = [];
+        const tab = getActiveTab();
+        if (!tab) return;
 
-        panX = data.panX || 0;
-        panY = data.panY || 0;
-        scale = data.scale || 1;
-        nodeIdCounter = data.nodeIdCounter || 0;
+        clearCanvas();
+
+        tab.panX = data.panX || 0;
+        tab.panY = data.panY || 0;
+        tab.scale = data.scale || 1;
+        tab.nodeIdCounter = data.nodeIdCounter || 0;
         updateCanvasTransform();
 
         if (data.nodes) {
@@ -1824,36 +2157,46 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- HISTORY (UNDO/REDO) ---
     function saveState() {
-        // Clear any "future" states if we've undone and then made a new action
-        if (historyIndex < history.length - 1) {
-            history = history.slice(0, historyIndex + 1);
+        const tab = getActiveTab();
+        if (!tab) return;
+        
+        if (tab.historyIndex < tab.history.length - 1) {
+            tab.history = tab.history.slice(0, tab.historyIndex + 1);
         }
 
-        history.push(serializeCanvas());
-        historyIndex = history.length - 1;
+        tab.history.push(serializeCanvas());
+        tab.historyIndex = tab.history.length - 1;
         updateUndoRedoButtons();
         updateMinimap();
     }
 
     function undo() {
-        if (historyIndex > 0) {
-            historyIndex--;
-            deserializeCanvas(history[historyIndex]);
+        const tab = getActiveTab();
+        if (tab && tab.historyIndex > 0) {
+            tab.historyIndex--;
+            deserializeCanvas(tab.history[tab.historyIndex]);
             updateUndoRedoButtons();
         }
     }
 
     function redo() {
-        if (historyIndex < history.length - 1) {
-            historyIndex++;
-            deserializeCanvas(history[historyIndex]);
+        const tab = getActiveTab();
+        if (tab && tab.historyIndex < tab.history.length - 1) {
+            tab.historyIndex++;
+            deserializeCanvas(tab.history[tab.historyIndex]);
             updateUndoRedoButtons();
         }
     }
 
     function updateUndoRedoButtons() {
-        undoBtn.disabled = historyIndex <= 0;
-        redoBtn.disabled = historyIndex >= history.length - 1;
+        const tab = getActiveTab();
+        if (tab) {
+            undoBtn.disabled = tab.historyIndex <= 0;
+            redoBtn.disabled = tab.historyIndex >= tab.history.length - 1;
+        } else {
+            undoBtn.disabled = true;
+            redoBtn.disabled = true;
+        }
     }
 
     // --- FUNCTION & VARIABLE NODE MANAGEMENT ---
@@ -1932,7 +2275,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         populateSidebar();
         populateInfoNodes();
-        updateCanvasTransform();
         
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
@@ -1949,10 +2291,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         addCommentBtn.addEventListener('click', () => {
+            const tab = getActiveTab();
+            if (!tab) return;
             const commentInfo = availableNodes.find(n => n.type === 'comment');
             if (commentInfo) {
                 const newComment = createNodeElement(commentInfo, false);
-                newComment.id = `node-${nodeIdCounter++}`;
+                newComment.id = `node-${tab.nodeIdCounter++}`;
                 const dropPos = screenToCanvas(lastCanvasContextMenuPos.x, lastCanvasContextMenuPos.y);
                 newComment.style.left = `${dropPos.x}px`;
                 newComment.style.top = `${dropPos.y}px`;
@@ -2018,11 +2362,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDismissBtn.addEventListener('click', () => {
             updateModal.classList.add('modal-hidden');
         });
-
-        updateFunctionCallNodes();
-        updateVariableGetNodes();
-        gatherAndRegisterHotkeys();
-        saveState(); // Save initial empty state
+        
+        // Start with one default tab
+        addTab();
     }
 
     window.addEventListener('pywebviewready', initializeApp);

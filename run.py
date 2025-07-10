@@ -517,15 +517,19 @@ class Api:
 
     def save_file(self, path, data):
         try:
-            with open(path, 'w') as f: json.dump(data, f, indent=4)
-            return {'success': True}
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=4)
+            filename = os.path.basename(path)
+            return {'success': True, 'filename': filename}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
     def load_file(self, path):
         try:
-            with open(path, 'r') as f: data = json.load(f)
-            return {'success': True, 'data': data}
+            with open(path, 'r') as f:
+                data = json.load(f)
+            filename = os.path.basename(path)
+            return {'success': True, 'data': data, 'filename': filename}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

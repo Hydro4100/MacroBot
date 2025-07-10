@@ -33,18 +33,27 @@
             </div>
         </aside>
 
-        <!-- Main canvas viewport -->
-        <main id="canvas">
-            <div id="coords-display">X: 0, Y: 0</div>
-            <div id="canvas-content">
-                <svg id="svg-layer"></svg>
+        <div class="canvas-area-wrapper">
+            <div id="tab-container">
+                <ul id="tab-list">
+                    <!-- Tabs will be dynamically inserted here by app.js -->
+                </ul>
+                <button id="add-tab-btn" title="New Project Tab">+</button>
             </div>
-            <!-- Minimap -->
-            <div id="minimap">
-                <canvas id="minimap-canvas"></canvas>
-                <div id="minimap-viewport"></div>
-            </div>
-        </main>
+    
+            <!-- Main canvas viewport -->
+            <main id="canvas">
+                <div id="coords-display">X: 0, Y: 0</div>
+                <div id="canvas-content">
+                    <svg id="svg-layer"></svg>
+                </div>
+                <!-- Minimap -->
+                <div id="minimap">
+                    <canvas id="minimap-canvas"></canvas>
+                    <div id="minimap-viewport"></div>
+                </div>
+            </main>
+        </div>
     </div>
 
     <!-- Update Available Modal -->
